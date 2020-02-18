@@ -2,15 +2,18 @@ package wug
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
+	"net/url"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 type WUGClient struct {
-	Resty *resty.Client
-	Token string
+	Resty  *resty.Client
+	Config *Config
+	Token  string
 }
 
 type Config struct {
@@ -37,15 +40,21 @@ func (c *Config) Client() (*WUGClient, error) {
 
 	client.Resty = resty.New()
 
+	params := url.Values{}
+	params.Add("grant_type", "password")
+	params.Add("username", c.User)
+	params.Add("password", c.Password)
+
 	resp, err := client.Resty.R().
 		SetHeader("Content-Type", "application/json").
-		SetBody(map[string]interface{}{"grant_type": "password", "username": c.User, "password": c.Password}).
+		//SetBody(map[string]interface{}{"grant_type": "password", "username": c.User, "password": c.Password}).
+		SetBody(params.Encode()).
 		Post(c.URL + "/token")
 
 	if err != nil {
 		return nil, err
 	} else if resp.StatusCode() != 200 {
-		return nil, err
+		return nil, errors.New(string(resp.Body()))
 	}
 
 	var i map[string]interface{}
@@ -57,6 +66,8 @@ func (c *Config) Client() (*WUGClient, error) {
 	client.Token = i["access_token"].(string)
 
 	log.Printf("[WUG] Access token: %s", client.Token)
+
+	client.Config = c
 
 	return client, nil
 }
