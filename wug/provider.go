@@ -35,7 +35,7 @@ func Provider() *schema.Provider {
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"device": resourceDevice(),
+			"wug_device": resourceDevice(),
 		},
 		ConfigureFunc: providerConfigure,
 	}
