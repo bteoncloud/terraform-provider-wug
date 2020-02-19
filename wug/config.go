@@ -1,13 +1,13 @@
 package wug
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 	"net/url"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/tidwall/gjson"
 )
 
 type WUGClient struct {
@@ -57,13 +57,7 @@ func (c *Config) Client() (*WUGClient, error) {
 		return nil, errors.New(string(resp.Body()))
 	}
 
-	var i map[string]interface{}
-	jsonErr := json.Unmarshal(resp.Body(), &i)
-	if jsonErr != nil {
-		return nil, jsonErr
-	}
-
-	client.Token = i["access_token"].(string)
+	client.Token = gjson.GetBytes(resp.Body(), "access_token").String()
 
 	log.Printf("[WUG] Access token: %s", client.Token)
 

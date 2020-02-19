@@ -1,12 +1,12 @@
 package wug
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/tidwall/gjson"
 )
 
 func resourceDevice() *schema.Resource {
@@ -130,16 +130,7 @@ func resourceDeviceCreate(d *schema.ResourceData, m interface{}) error {
 		return errors.New(string(resp.Body()))
 	}
 
-	var i map[string]interface{}
-	jsonErr := json.Unmarshal(resp.Body(), &i)
-	if jsonErr != nil {
-		return jsonErr
-	}
-
-	result := i["data"].(map[string]interface{})
-	idMap := result["idMap"].([]interface{})
-
-	d.SetId(idMap[0].(map[string]interface{})["resultId"].(string))
+	d.SetId(gjson.GetBytes(resp.Body(), "data.idMap.0.resultId").String())
 
 	log.Printf("[WUG] Created device with ID: %s\n", d.Id())
 
@@ -168,29 +159,23 @@ func resourceDeviceRead(d *schema.ResourceData, m interface{}) error {
 		return errors.New(string(resp.Body()))
 	}
 
-	var i map[string]interface{}
-	jsonErr := json.Unmarshal(resp.Body(), &i)
-	if jsonErr != nil {
-		return jsonErr
+	deviceCount := gjson.GetBytes(resp.Body(), "data.deviceCount").Int()
+
+	if deviceCount != 1 {
+		return fmt.Errorf("Found invalid device count for %s: %d", id, deviceCount)
 	}
 
-	result := i["data"].(map[string]interface{})
-	if result["deviceCount"].(float64) != 1 {
-		return fmt.Errorf("Found invalid device count for %s: %d", id, result["deviceCount"].(int))
-	}
-
-	template := result["templates"].([]interface{})[0].(map[string]interface{})
-	d.Set("name", template["displayName"].(string))
-	d.Set("groups", template["groups"])
+	d.Set("name", gjson.GetBytes(resp.Body(), "data.templates.0.displayName").String())
+	d.Set("groups", gjson.GetBytes(resp.Body(), "data.templates.0.groups").Array())
 
 	/* Reformat the interfaces array since the field names change... */
 	interfaces := make([]map[string]interface{}, 0)
-	for _, iface := range template["interfaces"].([]interface{}) {
+	for _, iface := range gjson.GetBytes(resp.Body(), "data.templates.0.interfaces").Array() {
 		interfaces = append(interfaces, map[string]interface{}{
-			"default":                 iface.(map[string]interface{})["defaultInterface"].(bool),
-			"poll_using_network_name": iface.(map[string]interface{})["pollUsingNetworkName"].(bool),
-			"network_address":         iface.(map[string]interface{})["networkAddress"].(string),
-			"network_name":            iface.(map[string]interface{})["networkName"].(string),
+			"default":                 iface.Get("defaultInterface").Bool(),
+			"poll_using_network_name": iface.Get("pollUsingNetworkName").Bool(),
+			"network_address":         iface.Get("networkAddress").String(),
+			"network_name":            iface.Get("networkName").String(),
 		})
 	}
 
