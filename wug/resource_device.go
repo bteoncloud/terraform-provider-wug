@@ -87,6 +87,23 @@ func resourceDevice() *schema.Resource {
 					},
 				}},
 			},
+			"credential": &schema.Schema{
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "Credentials.",
+				Elem: &schema.Resource{Schema: map[string]*schema.Schema{
+					"type": &schema.Schema{
+						Type:        schema.TypeString,
+						Required:    true,
+						Description: "Credential type (SNMP, Windows, etc).",
+					},
+					"name": &schema.Schema{
+						Type:        schema.TypeString,
+						Required:    true,
+						Description: "Credential name.",
+					},
+				}},
+			},
 		},
 	}
 }
@@ -96,7 +113,7 @@ func resourceDeviceCreate(d *schema.ResourceData, m interface{}) error {
 	token := m.(*WUGClient).Token
 	config := m.(*WUGClient).Config
 
-	/* Reformat the interfaces array since the field names change... */
+	/* Reformat arrays since the field names may change... */
 	interfaces := make([]map[string]interface{}, 0)
 	for _, iface := range d.Get("interface").(*schema.Set).List() {
 		interfaces = append(interfaces, map[string]interface{}{
@@ -104,6 +121,14 @@ func resourceDeviceCreate(d *schema.ResourceData, m interface{}) error {
 			"pollUsingNetworkName": iface.(map[string]interface{})["poll_using_network_name"].(bool),
 			"networkAddress":       iface.(map[string]interface{})["network_address"].(string),
 			"networkName":          iface.(map[string]interface{})["network_name"].(string),
+		})
+	}
+
+	credentials := make([]map[string]interface{}, 0)
+	for _, cred := range d.Get("credential").(*schema.Set).List() {
+		credentials = append(credentials, map[string]interface{}{
+			"credentialType": cred.(map[string]interface{})["type"].(string),
+			"credential":     cred.(map[string]interface{})["name"].(string),
 		})
 	}
 
@@ -115,6 +140,7 @@ func resourceDeviceCreate(d *schema.ResourceData, m interface{}) error {
 			"displayName": d.Get("name").(string),
 			"interfaces":  interfaces,
 			"groups":      d.Get("groups").([]interface{}),
+			"credentials": credentials,
 		}},
 	}
 
@@ -168,7 +194,7 @@ func resourceDeviceRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("name", gjson.GetBytes(resp.Body(), "data.templates.0.displayName").String())
 	d.Set("groups", gjson.GetBytes(resp.Body(), "data.templates.0.groups").Array())
 
-	/* Reformat the interfaces array since the field names change... */
+	/* Reformat arrays since the field names may change... */
 	interfaces := make([]map[string]interface{}, 0)
 	for _, iface := range gjson.GetBytes(resp.Body(), "data.templates.0.interfaces").Array() {
 		interfaces = append(interfaces, map[string]interface{}{
@@ -180,6 +206,16 @@ func resourceDeviceRead(d *schema.ResourceData, m interface{}) error {
 	}
 
 	d.Set("interface", interfaces)
+
+	credentials := make([]map[string]interface{}, 0)
+	for _, iface := range gjson.GetBytes(resp.Body(), "data.templates.0.credentials").Array() {
+		credentials = append(credentials, map[string]interface{}{
+			"type": iface.Get("credentialType").String(),
+			"name": iface.Get("credential").String(),
+		})
+	}
+
+	d.Set("credential", credentials)
 
 	return nil
 }
