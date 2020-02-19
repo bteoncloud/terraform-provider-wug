@@ -136,6 +136,18 @@ func resourceDevice() *schema.Resource {
 					},
 				}},
 			},
+			"performance_monitor": &schema.Schema{
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "Performance monitors.",
+				Elem: &schema.Resource{Schema: map[string]*schema.Schema{
+					"name": &schema.Schema{
+						Type:        schema.TypeString,
+						Required:    true,
+						Description: "Monitor name.",
+					},
+				}},
+			},
 		},
 	}
 }
@@ -180,11 +192,12 @@ func resourceDeviceCreate(d *schema.ResourceData, m interface{}) error {
 			d.Get("options").(string),
 		},
 		"templates": []map[string]interface{}{{
-			"displayName":    d.Get("name").(string),
-			"interfaces":     interfaces,
-			"groups":         d.Get("groups").([]interface{}),
-			"credentials":    credentials,
-			"activeMonitors": activeMonitors,
+			"displayName":         d.Get("name").(string),
+			"interfaces":          interfaces,
+			"groups":              d.Get("groups").([]interface{}),
+			"credentials":         credentials,
+			"activeMonitors":      activeMonitors,
+			"performanceMonitors": d.Get("performance_monitor").(*schema.Set).List(),
 		}},
 	}
 
@@ -273,6 +286,8 @@ func resourceDeviceRead(d *schema.ResourceData, m interface{}) error {
 	}
 
 	d.Set("active_monitor", activeMonitors)
+
+	d.Set("performance_monitor", gjson.GetBytes(resp.Body(), "data.templates.0.performanceMonitors").Array())
 
 	return nil
 }
