@@ -104,6 +104,38 @@ func resourceDevice() *schema.Resource {
 					},
 				}},
 			},
+			"active_monitor": &schema.Schema{
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "Active monitors.",
+				Elem: &schema.Resource{Schema: map[string]*schema.Schema{
+					"name": &schema.Schema{
+						Type:        schema.TypeString,
+						Required:    true,
+						Description: "Monitor name.",
+					},
+					"argument": &schema.Schema{
+						Type:        schema.TypeString,
+						Optional:    true,
+						Description: "Monitor argument.",
+					},
+					"comment": &schema.Schema{
+						Type:        schema.TypeString,
+						Optional:    true,
+						Description: "Monitor comment.",
+					},
+					"critical": &schema.Schema{
+						Type:        schema.TypeBool,
+						Optional:    true,
+						Description: "Is monitor critical.",
+					},
+					"polling_order": &schema.Schema{
+						Type:        schema.TypeInt,
+						Optional:    true,
+						Description: "Monitor polling order.",
+					},
+				}},
+			},
 		},
 	}
 }
@@ -132,15 +164,27 @@ func resourceDeviceCreate(d *schema.ResourceData, m interface{}) error {
 		})
 	}
 
+	activeMonitors := make([]map[string]interface{}, 0)
+	for _, mon := range d.Get("active_monitor").(*schema.Set).List() {
+		activeMonitors = append(activeMonitors, map[string]interface{}{
+			"name":         mon.(map[string]interface{})["name"].(string),
+			"argument":     mon.(map[string]interface{})["argument"].(string),
+			"comment":      mon.(map[string]interface{})["comment"].(string),
+			"isCritical":   mon.(map[string]interface{})["critical"].(bool),
+			"pollingOrder": mon.(map[string]interface{})["polling_order"].(int),
+		})
+	}
+
 	params := map[string]interface{}{
 		"options": []string{
 			d.Get("options").(string),
 		},
 		"templates": []map[string]interface{}{{
-			"displayName": d.Get("name").(string),
-			"interfaces":  interfaces,
-			"groups":      d.Get("groups").([]interface{}),
-			"credentials": credentials,
+			"displayName":    d.Get("name").(string),
+			"interfaces":     interfaces,
+			"groups":         d.Get("groups").([]interface{}),
+			"credentials":    credentials,
+			"activeMonitors": activeMonitors,
 		}},
 	}
 
@@ -216,6 +260,19 @@ func resourceDeviceRead(d *schema.ResourceData, m interface{}) error {
 	}
 
 	d.Set("credential", credentials)
+
+	activeMonitors := make([]map[string]interface{}, 0)
+	for _, iface := range gjson.GetBytes(resp.Body(), "data.templates.0.activeMonitors").Array() {
+		activeMonitors = append(activeMonitors, map[string]interface{}{
+			"name":          iface.Get("name").String(),
+			"argument":      iface.Get("argument").String(),
+			"comment":       iface.Get("comment").String(),
+			"critical":      iface.Get("isCritical").Bool(),
+			"polling_order": iface.Get("pollingOrder").Int(),
+		})
+	}
+
+	d.Set("active_monitor", activeMonitors)
 
 	return nil
 }
