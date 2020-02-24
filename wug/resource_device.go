@@ -40,7 +40,7 @@ func resourceDevice() *schema.Resource {
 			},
 			"groups": &schema.Schema{
 				Type:        schema.TypeList,
-				Description: "List of groups that devie will be added to.",
+				Description: "List of groups that device will be added to.",
 				Required:    true,
 				Elem: &schema.Resource{Schema: map[string]*schema.Schema{
 					"parents": &schema.Schema{
@@ -148,6 +148,39 @@ func resourceDevice() *schema.Resource {
 					},
 				}},
 			},
+			"device_type": &schema.Schema{
+				Type:        schema.TypeString,
+				Description: "Type of the device.",
+				Optional:    true,
+			},
+			"snmp_oid": &schema.Schema{
+				Type:        schema.TypeString,
+				Description: "SNMP OID of the device.",
+				Optional:    true,
+			},
+			"primary_role": &schema.Schema{
+				Type:        schema.TypeString,
+				Description: "Primary role of the device.",
+				Optional:    true,
+			},
+			"subroles": &schema.Schema{
+				Type:        schema.TypeList,
+				Description: "Subroles of the device.",
+				Optional:    true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
+			"os": &schema.Schema{
+				Type:        schema.TypeString,
+				Description: "OS of the device.",
+				Optional:    true,
+			},
+			"brand": &schema.Schema{
+				Type:        schema.TypeString,
+				Description: "Brand of the device.",
+				Optional:    true,
+			},
 		},
 	}
 }
@@ -198,6 +231,12 @@ func resourceDeviceCreate(d *schema.ResourceData, m interface{}) error {
 			"credentials":         credentials,
 			"activeMonitors":      activeMonitors,
 			"performanceMonitors": d.Get("performance_monitor").(*schema.Set).List(),
+			"deviceType":          d.Get("device_type").(string),
+			"snmpOid":             d.Get("snmp_oid").(string),
+			"primaryRole":         d.Get("primary_role").(string),
+			"subRoles":            d.Get("subroles").([]interface{}),
+			"os":                  d.Get("os").(string),
+			"brand":               d.Get("brand").(string),
 		}},
 	}
 
@@ -288,6 +327,13 @@ func resourceDeviceRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("active_monitor", activeMonitors)
 
 	d.Set("performance_monitor", gjson.GetBytes(resp.Body(), "data.templates.0.performanceMonitors").Array())
+
+	d.Set("device_type", gjson.GetBytes(resp.Body(), "data.templates.0.deviceType").String())
+	d.Set("snmp_oid", gjson.GetBytes(resp.Body(), "data.templates.0.snmpOid").String())
+	d.Set("primary_role", gjson.GetBytes(resp.Body(), "data.templates.0.primaryRole").String())
+	d.Set("subroles", gjson.GetBytes(resp.Body(), "data.templates.0.subRoles").Array())
+	d.Set("os", gjson.GetBytes(resp.Body(), "data.templates.0.os").String())
+	d.Set("brand", gjson.GetBytes(resp.Body(), "data.templates.0.brand").String())
 
 	return nil
 }
