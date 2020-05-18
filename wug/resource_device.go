@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/tidwall/gjson"
 )
 
@@ -28,17 +29,10 @@ func resourceDevice() *schema.Resource {
 				Description: "Set of options for applying the template (either l2 or basic).",
 				Required:    true,
 				ForceNew:    true,
-				ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-					v := val.(string)
-					switch v {
-					case
-						"l2",
-						"basic":
-						return
-					}
-					errs = append(errs, fmt.Errorf("%q must be either 'basic' or 'l2', got: %s", key, v))
-					return
-				},
+				ValidateFunc: validation.StringInSlice([]string{
+					"l2",
+					"basic",
+				}, true),
 			},
 			"groups": &schema.Schema{
 				Type:        schema.TypeList,
