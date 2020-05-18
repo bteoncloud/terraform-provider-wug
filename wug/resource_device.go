@@ -21,11 +21,13 @@ func resourceDevice() *schema.Resource {
 				Type:        schema.TypeString,
 				Description: "Display name of the device.",
 				Required:    true,
+				ForceNew:    true,
 			},
 			"options": &schema.Schema{
 				Type:        schema.TypeString,
 				Description: "Set of options for applying the template (either l2 or basic).",
 				Required:    true,
+				ForceNew:    true,
 				ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
 					v := val.(string)
 					switch v {
@@ -42,6 +44,7 @@ func resourceDevice() *schema.Resource {
 				Type:        schema.TypeList,
 				Description: "List of groups that device will be added to.",
 				Required:    true,
+				ForceNew:    true,
 				Elem: &schema.Resource{Schema: map[string]*schema.Schema{
 					"parents": &schema.Schema{
 						Type:        schema.TypeList,
@@ -62,6 +65,7 @@ func resourceDevice() *schema.Resource {
 				Type:        schema.TypeSet,
 				Required:    true,
 				Description: "Interfaces.",
+				ForceNew:    true,
 				Elem: &schema.Resource{Schema: map[string]*schema.Schema{
 					"default": &schema.Schema{
 						Type:        schema.TypeBool,
@@ -90,6 +94,7 @@ func resourceDevice() *schema.Resource {
 			"credential": &schema.Schema{
 				Type:        schema.TypeSet,
 				Optional:    true,
+				ForceNew:    true,
 				Description: "Credentials.",
 				Elem: &schema.Resource{Schema: map[string]*schema.Schema{
 					"type": &schema.Schema{
@@ -107,6 +112,7 @@ func resourceDevice() *schema.Resource {
 			"active_monitor": &schema.Schema{
 				Type:        schema.TypeSet,
 				Optional:    true,
+				ForceNew:    true,
 				Description: "Active monitors.",
 				Elem: &schema.Resource{Schema: map[string]*schema.Schema{
 					"name": &schema.Schema{
@@ -139,6 +145,7 @@ func resourceDevice() *schema.Resource {
 			"performance_monitor": &schema.Schema{
 				Type:        schema.TypeSet,
 				Optional:    true,
+				ForceNew:    true,
 				Description: "Performance monitors.",
 				Elem: &schema.Resource{Schema: map[string]*schema.Schema{
 					"name": &schema.Schema{
@@ -152,21 +159,25 @@ func resourceDevice() *schema.Resource {
 				Type:        schema.TypeString,
 				Description: "Type of the device.",
 				Optional:    true,
+				ForceNew:    true,
 			},
 			"snmp_oid": &schema.Schema{
 				Type:        schema.TypeString,
 				Description: "SNMP OID of the device.",
 				Optional:    true,
+				ForceNew:    true,
 			},
 			"primary_role": &schema.Schema{
 				Type:        schema.TypeString,
 				Description: "Primary role of the device.",
 				Optional:    true,
+				ForceNew:    true,
 			},
 			"subroles": &schema.Schema{
 				Type:        schema.TypeList,
 				Description: "Subroles of the device.",
 				Optional:    true,
+				ForceNew:    true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
@@ -175,11 +186,13 @@ func resourceDevice() *schema.Resource {
 				Type:        schema.TypeString,
 				Description: "OS of the device.",
 				Optional:    true,
+				ForceNew:    true,
 			},
 			"brand": &schema.Schema{
 				Type:        schema.TypeString,
 				Description: "Brand of the device.",
 				Optional:    true,
+				ForceNew:    true,
 			},
 		},
 	}
