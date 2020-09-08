@@ -14,7 +14,8 @@ func resourceDevice() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceDeviceCreate,
 		Read:   resourceDeviceRead,
-		Update: resourceDeviceUpdate,
+		/* No Update path since all fields are ForceNew. */
+		/* Update: resourceDeviceUpdate, */
 		Delete: resourceDeviceDelete,
 
 		Schema: map[string]*schema.Schema{
