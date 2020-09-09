@@ -1,14 +1,66 @@
 package wug
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/tidwall/gjson"
 )
+
+// DeviceTemplateInterface is WUG's internal object.
+type DeviceTemplateInterface struct {
+	IsDefault            bool   `json:"defaultInterface,omitempty"`
+	PollUsingNetworkName bool   `json:"pollUsingNetworkName,omitempty"`
+	NetworkAddress       string `json:"networkAddress,omitempty"`
+	NetworkName          string `json:"networkName,omitempty"`
+}
+
+// DeviceTemplateReferenceName is WUG's internal object.
+type DeviceTemplateReferenceName struct {
+	Name    string   `json:"name,omitempty"`
+	Parents []string `json:"parents,omitempty"`
+}
+
+// DeviceTemplateCredentials is WUG's internal object.
+type DeviceTemplateCredentials struct {
+	CredentialType string `json:"credentialType,omitempty"`
+	Name           string `json:"credential,omitempty"`
+}
+
+// DeviceTemplateActiveMonitor is WUG's internal object.
+type DeviceTemplateActiveMonitor struct {
+	Name         string `json:"name,omitempty"`
+	Argument     string `json:"argument,omitempty"`
+	Comment      string `json:"comment,omitempty"`
+	IsCritical   string `json:"isCritical,omitempty"`
+	PollingOrder int    `json:"pollingOrder,string,omitempty"`
+}
+
+// DeviceTemplatePerformanceMonitor is WUG's internal object.
+type DeviceTemplatePerformanceMonitor struct {
+	Name string `json:"name,omitempty"`
+}
+
+// DeviceTemplate is WUG's internal object.
+type DeviceTemplate struct {
+	Name                string                             `json:"displayName,omitempty"`
+	Interfaces          []DeviceTemplateInterface          `json:"interfaces,omitempty"`
+	Groups              []DeviceTemplateReferenceName      `json:"groups,omitempty"`
+	Credentials         []DeviceTemplateCredentials        `json:"credentials,omitempty"`
+	ActiveMonitors      []DeviceTemplateActiveMonitor      `json:"activeMonitors,omitempty"`
+	PerformanceMonitors []DeviceTemplatePerformanceMonitor `json:"performanceMonitors,omitempty"`
+	DeviceType          string                             `json:"deviceType,omitempty"`
+	SnmpOid             string                             `json:"snmpOid,omitempty"`
+	PrimaryRole         string                             `json:"primaryRole,omitempty"`
+	SubRoles            []string                           `json:"subRoles,omitempty"`
+	Os                  string                             `json:"os,omitempty"`
+	Brand               string                             `json:"brand,omitempty"`
+}
 
 func resourceDevice() *schema.Resource {
 	return &schema.Resource{
@@ -129,11 +181,13 @@ func resourceDevice() *schema.Resource {
 						Type:        schema.TypeBool,
 						Optional:    true,
 						Description: "Is monitor critical.",
+						Default:     false,
 					},
 					"polling_order": &schema.Schema{
 						Type:        schema.TypeInt,
 						Optional:    true,
 						Description: "Monitor polling order.",
+						Default:     0,
 					},
 				}},
 			},
@@ -194,37 +248,79 @@ func resourceDevice() *schema.Resource {
 }
 
 func resourceDeviceCreate(d *schema.ResourceData, m interface{}) error {
-	wugResty := m.(*WUGClient).Resty
-	token := m.(*WUGClient).Token
-	config := m.(*WUGClient).Config
+	wugResty := m.(*Client).Resty
+	token := m.(*Client).Token
+	config := m.(*Client).Config
 
-	/* Reformat arrays since the field names may change... */
-	interfaces := make([]map[string]interface{}, 0)
-	for _, iface := range d.Get("interface").(*schema.Set).List() {
-		interfaces = append(interfaces, map[string]interface{}{
-			"defaultInterface":     iface.(map[string]interface{})["default"].(bool),
-			"pollUsingNetworkName": iface.(map[string]interface{})["poll_using_network_name"].(bool),
-			"networkAddress":       iface.(map[string]interface{})["network_address"].(string),
-			"networkName":          iface.(map[string]interface{})["network_name"].(string),
+	var template DeviceTemplate
+
+	/* Build our template object. */
+
+	template.Name = d.Get("name").(string)
+	template.DeviceType = d.Get("device_type").(string)
+	template.SnmpOid = d.Get("snmp_oid").(string)
+	template.PrimaryRole = d.Get("primary_role").(string)
+	template.Os = d.Get("os").(string)
+	template.Brand = d.Get("brand").(string)
+
+	groupList := d.Get("groups").([]interface{})
+	template.Groups = make([]DeviceTemplateReferenceName, 0)
+	for _, group := range groupList {
+		var refName DeviceTemplateReferenceName
+		refName.Name = group.(map[string]interface{})["name"].(string)
+
+		parents := group.(map[string]interface{})["parents"].([]interface{})
+		refName.Parents = make([]string, 0)
+		for _, parent := range parents {
+			refName.Parents = append(refName.Parents, parent.(string))
+		}
+
+		template.Groups = append(template.Groups, refName)
+	}
+
+	subRoles := d.Get("subroles").([]interface{})
+	template.SubRoles = make([]string, 0)
+	for _, subrole := range subRoles {
+		template.SubRoles = append(template.SubRoles, subrole.(string))
+	}
+
+	interfaceList := d.Get("interface").(*schema.Set).List()
+	template.Interfaces = make([]DeviceTemplateInterface, 0)
+	for _, iface := range interfaceList {
+		template.Interfaces = append(template.Interfaces, DeviceTemplateInterface{
+			IsDefault:            iface.(map[string]interface{})["default"].(bool),
+			PollUsingNetworkName: iface.(map[string]interface{})["poll_using_network_name"].(bool),
+			NetworkAddress:       iface.(map[string]interface{})["network_address"].(string),
+			NetworkName:          iface.(map[string]interface{})["network_name"].(string),
 		})
 	}
 
-	credentials := make([]map[string]interface{}, 0)
-	for _, cred := range d.Get("credential").(*schema.Set).List() {
-		credentials = append(credentials, map[string]interface{}{
-			"credentialType": cred.(map[string]interface{})["type"].(string),
-			"credential":     cred.(map[string]interface{})["name"].(string),
+	credentialList := d.Get("credential").(*schema.Set).List()
+	template.Credentials = make([]DeviceTemplateCredentials, 0)
+	for _, cred := range credentialList {
+		template.Credentials = append(template.Credentials, DeviceTemplateCredentials{
+			CredentialType: cred.(map[string]interface{})["type"].(string),
+			Name:           cred.(map[string]interface{})["name"].(string),
 		})
 	}
 
-	activeMonitors := make([]map[string]interface{}, 0)
-	for _, mon := range d.Get("active_monitor").(*schema.Set).List() {
-		activeMonitors = append(activeMonitors, map[string]interface{}{
-			"name":         mon.(map[string]interface{})["name"].(string),
-			"argument":     mon.(map[string]interface{})["argument"].(string),
-			"comment":      mon.(map[string]interface{})["comment"].(string),
-			"isCritical":   mon.(map[string]interface{})["critical"].(bool),
-			"pollingOrder": mon.(map[string]interface{})["polling_order"].(int),
+	activeMonitorsList := d.Get("active_monitor").(*schema.Set).List()
+	template.ActiveMonitors = make([]DeviceTemplateActiveMonitor, 0)
+	for _, mon := range activeMonitorsList {
+		template.ActiveMonitors = append(template.ActiveMonitors, DeviceTemplateActiveMonitor{
+			Name:         mon.(map[string]interface{})["name"].(string),
+			Argument:     mon.(map[string]interface{})["argument"].(string),
+			Comment:      mon.(map[string]interface{})["comment"].(string),
+			IsCritical:   strconv.FormatBool(mon.(map[string]interface{})["critical"].(bool)),
+			PollingOrder: mon.(map[string]interface{})["polling_order"].(int),
+		})
+	}
+
+	performanceMonitorsList := d.Get("performance_monitor").(*schema.Set).List()
+	template.PerformanceMonitors = make([]DeviceTemplatePerformanceMonitor, 0)
+	for _, mon := range performanceMonitorsList {
+		template.PerformanceMonitors = append(template.PerformanceMonitors, DeviceTemplatePerformanceMonitor{
+			Name: mon.(map[string]interface{})["name"].(string),
 		})
 	}
 
@@ -232,20 +328,9 @@ func resourceDeviceCreate(d *schema.ResourceData, m interface{}) error {
 		"options": []string{
 			d.Get("options").(string),
 		},
-		"templates": []map[string]interface{}{{
-			"displayName":         d.Get("name").(string),
-			"interfaces":          interfaces,
-			"groups":              d.Get("groups").([]interface{}),
-			"credentials":         credentials,
-			"activeMonitors":      activeMonitors,
-			"performanceMonitors": d.Get("performance_monitor").(*schema.Set).List(),
-			"deviceType":          d.Get("device_type").(string),
-			"snmpOid":             d.Get("snmp_oid").(string),
-			"primaryRole":         d.Get("primary_role").(string),
-			"subRoles":            d.Get("subroles").([]interface{}),
-			"os":                  d.Get("os").(string),
-			"brand":               d.Get("brand").(string),
-		}},
+		"templates": []DeviceTemplate{
+			template,
+		},
 	}
 
 	resp, err := wugResty.SetDebug(true).R().
@@ -260,7 +345,13 @@ func resourceDeviceCreate(d *schema.ResourceData, m interface{}) error {
 		return errors.New(string(resp.Body()))
 	}
 
-	d.SetId(gjson.GetBytes(resp.Body(), "data.idMap.0.resultId").String())
+	deviceID := gjson.GetBytes(resp.Body(), "data.idMap.0.resultId").String()
+
+	if len(deviceID) == 0 {
+		return errors.New(string(resp.Body()))
+	}
+
+	d.SetId(deviceID)
 
 	log.Printf("[WUG] Created device with ID: %s\n", d.Id())
 
@@ -268,9 +359,9 @@ func resourceDeviceCreate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceDeviceRead(d *schema.ResourceData, m interface{}) error {
-	resty := m.(*WUGClient).Resty
-	token := m.(*WUGClient).Token
-	config := m.(*WUGClient).Config
+	resty := m.(*Client).Resty
+	token := m.(*Client).Token
+	config := m.(*Client).Config
 
 	id := d.Id()
 
@@ -295,53 +386,59 @@ func resourceDeviceRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Found invalid device count for %s: %d", id, deviceCount)
 	}
 
-	d.Set("name", gjson.GetBytes(resp.Body(), "data.templates.0.displayName").String())
-	d.Set("groups", gjson.GetBytes(resp.Body(), "data.templates.0.groups").Array())
+	var template DeviceTemplate
+	err = json.Unmarshal([]byte(gjson.GetBytes(resp.Body(), "data.templates.0").Raw), &template)
+	if err != nil {
+		return err
+	}
+
+	d.Set("name", template.Name)
+	d.Set("groups", template.Groups)
 
 	/* Reformat arrays since the field names may change... */
 	interfaces := make([]map[string]interface{}, 0)
-	for _, iface := range gjson.GetBytes(resp.Body(), "data.templates.0.interfaces").Array() {
+	for _, iface := range template.Interfaces {
 		interfaces = append(interfaces, map[string]interface{}{
-			"default":                 iface.Get("defaultInterface").Bool(),
-			"poll_using_network_name": iface.Get("pollUsingNetworkName").Bool(),
-			"network_address":         iface.Get("networkAddress").String(),
-			"network_name":            iface.Get("networkName").String(),
+			"default":                 iface.IsDefault,
+			"poll_using_network_name": iface.PollUsingNetworkName,
+			"network_address":         iface.NetworkAddress,
+			"network_name":            iface.NetworkName,
 		})
 	}
 
 	d.Set("interface", interfaces)
 
 	credentials := make([]map[string]interface{}, 0)
-	for _, iface := range gjson.GetBytes(resp.Body(), "data.templates.0.credentials").Array() {
+	for _, cred := range template.Credentials {
 		credentials = append(credentials, map[string]interface{}{
-			"type": iface.Get("credentialType").String(),
-			"name": iface.Get("credential").String(),
+			"type": cred.CredentialType,
+			"name": cred.Name,
 		})
 	}
 
 	d.Set("credential", credentials)
 
 	activeMonitors := make([]map[string]interface{}, 0)
-	for _, iface := range gjson.GetBytes(resp.Body(), "data.templates.0.activeMonitors").Array() {
+	for _, mon := range template.ActiveMonitors {
 		activeMonitors = append(activeMonitors, map[string]interface{}{
-			"name":          iface.Get("name").String(),
-			"argument":      iface.Get("argument").String(),
-			"comment":       iface.Get("comment").String(),
-			"critical":      iface.Get("isCritical").Bool(),
-			"polling_order": iface.Get("pollingOrder").Int(),
+			"name":          mon.Name,
+			"argument":      mon.Argument,
+			"comment":       mon.Comment,
+			"critical":      mon.IsCritical,
+			"polling_order": mon.PollingOrder,
 		})
 	}
 
 	d.Set("active_monitor", activeMonitors)
 
-	d.Set("performance_monitor", gjson.GetBytes(resp.Body(), "data.templates.0.performanceMonitors").Array())
+	d.Set("performance_monitor", template.PerformanceMonitors)
 
-	d.Set("device_type", gjson.GetBytes(resp.Body(), "data.templates.0.deviceType").String())
-	d.Set("snmp_oid", gjson.GetBytes(resp.Body(), "data.templates.0.snmpOid").String())
-	d.Set("primary_role", gjson.GetBytes(resp.Body(), "data.templates.0.primaryRole").String())
-	d.Set("subroles", gjson.GetBytes(resp.Body(), "data.templates.0.subRoles").Array())
-	d.Set("os", gjson.GetBytes(resp.Body(), "data.templates.0.os").String())
-	d.Set("brand", gjson.GetBytes(resp.Body(), "data.templates.0.brand").String())
+	d.Set("device_type", template.DeviceType)
+	d.Set("snmp_oid", template.SnmpOid)
+	d.Set("primary_role", template.PrimaryRole)
+	d.Set("subroles", template.SubRoles)
+	d.Set("os", template.Os)
+	d.Set("brand", template.Brand)
 
 	return nil
 }
@@ -351,9 +448,9 @@ func resourceDeviceUpdate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceDeviceDelete(d *schema.ResourceData, m interface{}) error {
-	resty := m.(*WUGClient).Resty
-	token := m.(*WUGClient).Token
-	config := m.(*WUGClient).Config
+	resty := m.(*Client).Resty
+	token := m.(*Client).Token
+	config := m.(*Client).Config
 
 	id := d.Id()
 

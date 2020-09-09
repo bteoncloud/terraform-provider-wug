@@ -10,12 +10,14 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-type WUGClient struct {
+// Client holds the Resty instance and API configuration.
+type Client struct {
 	Resty  *resty.Client
 	Config *Config
 	Token  string
 }
 
+// Config holds API configuration parameters.
 type Config struct {
 	InsecureFlag bool
 	User         string
@@ -23,6 +25,7 @@ type Config struct {
 	URL          string
 }
 
+// NewConfig instanciates a Config object.
 func NewConfig(d *schema.ResourceData) (*Config, error) {
 	c := &Config{
 		User:         d.Get("user").(string),
@@ -34,9 +37,9 @@ func NewConfig(d *schema.ResourceData) (*Config, error) {
 	return c, nil
 }
 
-/* Returns a REST client for WUG. */
-func (c *Config) Client() (*WUGClient, error) {
-	client := new(WUGClient)
+// Client returns a REST client for WUG.
+func (c *Config) Client() (*Client, error) {
+	client := new(Client)
 
 	client.Resty = resty.New()
 
