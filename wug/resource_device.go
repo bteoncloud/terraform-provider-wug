@@ -60,6 +60,7 @@ type DeviceTemplate struct {
 	SubRoles            []string                           `json:"subRoles,omitempty"`
 	Os                  string                             `json:"os,omitempty"`
 	Brand               string                             `json:"brand,omitempty"`
+	ActionPolicy        string                             `json:"actionPolicy,omitempty"`
 }
 
 func resourceDevice() *schema.Resource {
@@ -243,6 +244,12 @@ func resourceDevice() *schema.Resource {
 				Optional:    true,
 				ForceNew:    true,
 			},
+			"action_policy": &schema.Schema{
+				Type:        schema.TypeString,
+				Description: "Policy how to get notified.",
+				Optional:    true,
+				ForceNew:    true,
+			},
 		},
 	}
 }
@@ -262,6 +269,7 @@ func resourceDeviceCreate(d *schema.ResourceData, m interface{}) error {
 	template.PrimaryRole = d.Get("primary_role").(string)
 	template.Os = d.Get("os").(string)
 	template.Brand = d.Get("brand").(string)
+	template.ActionPolicy = d.Get("action_policy").(string)
 
 	groupList := d.Get("groups").([]interface{})
 	template.Groups = make([]DeviceTemplateReferenceName, 0)
@@ -439,6 +447,7 @@ func resourceDeviceRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("subroles", template.SubRoles)
 	d.Set("os", template.Os)
 	d.Set("brand", template.Brand)
+	d.Set("action_policy", template.ActionPolicy)
 
 	return nil
 }
