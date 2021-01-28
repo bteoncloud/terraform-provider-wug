@@ -35,8 +35,12 @@ func Provider() *schema.Provider {
 				Description: "If set, WUG client will permit unverifiable SSL certificates.",
 			},
 		},
+		DataSourcesMap: map[string]*schema.Resource{
+			"wug_monitor": dataSourceMonitor(),
+		},
 		ResourcesMap: map[string]*schema.Resource{
 			"wug_device": resourceDevice(),
+			"wug_monitor": resourceMonitor(),
 		},
 		ConfigureFunc: providerConfigure,
 	}
