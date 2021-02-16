@@ -1,11 +1,9 @@
 package wug
 
 import (
-//	"encoding/json"
+	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
-//	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
@@ -26,14 +24,12 @@ type MonitorActiveParameters struct {
 
 // MonitorPerformanceParameters is WUG's internal object.
 type MonitorPerformanceParameters struct {
-	PollingIntervalMinutes int `json:"polingIntervalMinutes,omitempty"`
+	PollingIntervalMinutes int `json:"pollingIntervalMinutes,omitempty"`
 }
 
 // MonitorParameters is WUG's internal object.
 type MonitorTemplate struct {
 	Type                string                             `json:"type,omitempty"`
-	IsGlobal            bool                               `json:"isGlobal,omitempty"`
-	Enabled             bool                               `json:"enabled,omitempty"`
 	MonitorTypeClassId  string                             `json:"monitorTypeClassId,omitempty"`
 	MonitorTypeId       string                             `json:"monitorType,omitempty"`
 	MonitorTypeName     string                             `json:"monitorTypeName,omitempty"`
@@ -65,20 +61,6 @@ func resourceMonitor() *schema.Resource {
 					"active",
 					"performance",
 				}, true),
-			},
-			"is_global": {
-				Type:        schema.TypeBool,
-				Description: "If the monitor is from the global monitor library.",
-				Optional:    true,
-				Default:     true,
-				ForceNew:    true,
-			},
-			"enabled": {
-				Type:        schema.TypeBool,
-				Description: "If the monitor assignment get enabled.",
-				Optional:    true,
-				Default:     true,
-				ForceNew:    true,
 			},
 			"monitor_type_class_id": {
 				Type:        schema.TypeString,
@@ -174,8 +156,6 @@ func resourceMonitorCreate(d *schema.ResourceData, m interface{}) error {
 	/* Build our object. */
 
 	monitor.Type = d.Get("type").(string)
-	monitor.IsGlobal = d.Get("is_global").(bool)
-	monitor.Enabled = d.Get("enabled").(bool)
 	monitor.MonitorTypeClassId = d.Get("monitor_type_class_id").(string)
 	monitor.MonitorTypeId = d.Get("monitor_type_id").(string)
 	monitor.MonitorTypeName = d.Get("monitor_type_name").(string)
@@ -198,24 +178,16 @@ func resourceMonitorCreate(d *schema.ResourceData, m interface{}) error {
 
 	var deviceId = d.Get("device_id").(string)
 
-//	params := map[string]interface{}{
-//		"type": monitor.Type,
-//		"is_global": monitor.IsGlobal,
-//		"enabled": monitor.Enabled,
-//		"monitor_type_class_id": monitor.MonitorTypeClassId,
-//		"monitor_type_id": monitor.MonitorTypeId,
-//		"monitor_type_name": monitor.MonitorTypeName,
-//		"active": monitor.Active,
-//		"performance": monitor.Performance,
-//	}
-
 	params := monitor
+
+	s,_ := json.MarshalIndent(params, "", "\t")
+	log.Printf(string(s))
 
 	resp, err := wugResty.SetDebug(true).R().
 		SetHeader("Content-Type", "application/json").
 		SetAuthToken(token).
 		SetBody(params).
-		Patch(config.URL + "/devices/" + deviceId + "/monitors/-")
+		Post(config.URL + "/devices/" + deviceId + "/monitors/-")
 
 	if err != nil {
 		return err
@@ -259,17 +231,9 @@ func resourceMonitorRead(d *schema.ResourceData, m interface{}) error {
 		return errors.New(string(resp.Body()))
 	}
 
-	monitorCount := gjson.GetBytes(resp.Body(), "paging.size").Int()
-
-	if monitorCount != 1 {
-		return fmt.Errorf("Found invalid monitor count for %s: %d", id, monitorCount)
-	}
-
 	var monitor MonitorTemplate
 
 	d.Set("type", monitor.Type)
-	d.Set("is_global", monitor.IsGlobal)
-	d.Set("enabled", monitor.Enabled)
 	d.Set("monitor_type_class_id", monitor.MonitorTypeClassId)
 	d.Set("monitor_type_id", monitor.MonitorTypeId)
 	d.Set("monitor_type_name", monitor.MonitorTypeName)

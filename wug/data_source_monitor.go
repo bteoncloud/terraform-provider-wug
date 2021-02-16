@@ -3,9 +3,7 @@ package wug
 import (
 	"encoding/json"
 	"errors"
-//	"fmt"
-//	"log"
-//	"strconv"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
@@ -17,8 +15,23 @@ import (
 type MonitorInfo struct {
 	Type                string                             `json:"type,omitempty"`
 	Search	            string                             `json:"search,omitempty"`
-	ClassId	            string                             `json:"class_id,omitempty"`
-	MonitorId           string                             `json:"monitor_id,omitempty"`
+	ClassId	            string                             `json:"classId,omitempty"`
+	MonitorName         string                             `json:"monitorName,omitempty"`
+}
+
+// MonitorTypeInfo is WUG's internal object.
+type MonitorTypeInfo struct {
+	ClassId                 string                             `json:"classId,omitempty"`
+	BaseType	        string                             `json:"baseType,omitempty"`
+}
+
+// MonitorTemplate is WUG's internal object.
+type MonitorSearchTemplate struct {
+	MonitorId               string                             `json:"monitorId,omitempty"`
+	Name			string                             `json:"name,omitempty"`
+	Description             string                             `json:"description,omitempty"`
+	Id			string                             `json:"id,omitempty"`
+	MonitorTypeInfo		MonitorTypeInfo                    `json:"monitorTypeInfo,omitempty"`
 }
 
 func dataSourceMonitor() *schema.Resource {
@@ -48,9 +61,9 @@ func dataSourceMonitor() *schema.Resource {
 				Computed:    true,
 				ForceNew:    true,
 			},
-			"monitor_id": &schema.Schema{
+			"monitor_name": &schema.Schema{
 				Type:        schema.TypeString,
-				Description: "ID of the monitor",
+				Description: "Name of the monitor",
 				Computed:    true,
 				ForceNew:    true,
 			},
@@ -66,6 +79,9 @@ func dataSourceMonitorRead(d *schema.ResourceData, m interface{}) error {
 	params := map[string]string{
 		"type": d.Get("type").(string),
 		"search": d.Get("search").(string),
+		"includeDeviceMonitors": "true",
+		"includeSystemMonitors": "true",
+		"includeCoreMonitors": "true",
 	}
 
 	resp, err := resty.R().
@@ -84,16 +100,27 @@ func dataSourceMonitorRead(d *schema.ResourceData, m interface{}) error {
 		return errors.New(string(resp.Body()))
 	}
 
-	var data []MonitorInfo
-	err = json.Unmarshal([]byte(gjson.GetBytes(resp.Body(), "data.activeMonitors").Raw), &data)
+	monitorCount := gjson.GetBytes(resp.Body(), "paging.size").Int()
+	if monitorCount == 0 {
+		return fmt.Errorf("Found no monitor for " + d.Get("search").(string))
+	}
+
+	var data MonitorSearchTemplate
+	var mode string
+	if d.Get("type").(string) == "active" {
+		mode = "data.activeMonitors.0"
+	}
+	if d.Get("type").(string) == "performance" {
+		mode = "data.performanceMonitors.0"
+	}
+	err = json.Unmarshal([]byte(gjson.GetBytes(resp.Body(), mode).Raw), &data)
 	if err != nil {
 		return err
 	}
 
-	class_id := data[0].ClassId
-	monitor_id := data[0].MonitorId
-	d.Set("class_id", class_id)
-	d.Set("monitor_id", monitor_id)
+	d.Set("class_id", data.MonitorTypeInfo.ClassId)
+	d.Set("monitor_name", data.Name)
+	d.SetId(data.MonitorId)
 
 	return nil
 }
