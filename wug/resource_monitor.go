@@ -232,6 +232,10 @@ func resourceMonitorRead(d *schema.ResourceData, m interface{}) error {
 	}
 
 	var monitor MonitorTemplate
+	err = json.Unmarshal([]byte(gjson.GetBytes(resp.Body(), "data").Raw), &monitor)
+	if err!= nil {
+		return err
+	}
 
 	d.Set("type", monitor.Type)
 	d.Set("monitor_type_class_id", monitor.MonitorTypeClassId)
