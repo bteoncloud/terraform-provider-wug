@@ -160,7 +160,7 @@ NOTE: Testing the WUG provider is currently a complex operation as it requires h
 Most of the tests in this provider require a comprehensive list of environment variables to run. Individual `*_test.go` files in the [`wug/`][12] directory have not been built yet. 
 Here is an example of how to manage a configuration file of the test environment variables within another provider.
 
-[12]: https://github.com/GSLabDev/terraform-provider-veeam/tree/master/veeam 
+[12]: https://github.com/nerimcloud/terraform-provider-wug
 
 # Running the Acceptance Tests
 
