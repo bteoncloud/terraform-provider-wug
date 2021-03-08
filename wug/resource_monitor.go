@@ -183,7 +183,7 @@ func resourceMonitorCreate(d *schema.ResourceData, m interface{}) error {
 	s,_ := json.MarshalIndent(params, "", "\t")
 	log.Printf(string(s))
 
-	resp, err := wugResty.SetDebug(true).R().
+	resp, err := wugResty.R().
 		SetHeader("Content-Type", "application/json").
 		SetAuthToken(token).
 		SetBody(params).
