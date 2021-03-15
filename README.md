@@ -121,12 +121,12 @@ section above][8]).
 [8]: (#Using-the-Provider)
 
 # Cloning the Project
-First, you will want to clone the repository to `$GOPATH/src/github.com/terraform-providers/terraform-provider-wug`:
+First, you will want to clone the repository to `$GOPATH/src/github.com/nerimcloud/terraform-provider-wug`:
 
 ```
-mkdir -p $GOPATH/src/github.com/terraform-providers
-cd $GOPATH/src/github.com/terraform-providers
-git clone git@github.com:terraform-providers/terraform-provider-wug
+mkdir -p $GOPATH/src/github.com/nerimcloud
+cd $GOPATH/src/github.com/nerimcloud
+git clone git@github.com:nerimcloud/terraform-provider-wug
 
 ```
 
@@ -134,7 +134,7 @@ git clone git@github.com:terraform-providers/terraform-provider-wug
 After the clone has been completed, you can enter the provider directory and build the provider.
 
 ```
-cd $GOPATH/src/github.com/terraform-providers/terraform-provider-wug
+cd $GOPATH/src/github.com/nerimcloud/terraform-provider-wug
 make build
 
 ```
